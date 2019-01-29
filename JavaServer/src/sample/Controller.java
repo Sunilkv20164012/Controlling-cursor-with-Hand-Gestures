@@ -1,7 +1,9 @@
 package sample;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.net.URL;
+import java.util.List;
 import java.util.ResourceBundle;
 
 import javafx.application.Platform;
@@ -23,8 +25,8 @@ import javafx.scene.layout.FlowPane;
 
 import com.github.sarxos.webcam.Webcam;
 
-public class Controller implements Initializable {
 
+public class Controller implements Initializable {
 
     @FXML
     Button btnStartCamera;
@@ -40,11 +42,19 @@ public class Controller implements Initializable {
     FlowPane fpBottomPane;
     @FXML
     ImageView imgWebCamCapturedImage;
+    @FXML
+    ImageView topRightImage;
+    @FXML
+    ImageView middleRightImage;
 
-    private BufferedImage grabbedImage;
+    private int width, height; //height and width of camera
+    private BufferedImage grabbedImage; // initial cam image
     private Webcam selWebCam = null;
     private boolean stopCamera = false;
     private ObjectProperty<Image> imageProperty = new SimpleObjectProperty<>();
+    private ObjectProperty<Image> secondImageProperty = new SimpleObjectProperty<>();
+    private ObjectProperty<Image> thirdImageProperty = new SimpleObjectProperty<>();
+    private int[] pixelRaster; //pixel raster for initial cam image
 
     @Override
     public void initialize(URL arg0, ResourceBundle arg1) {
@@ -89,7 +99,7 @@ public class Controller implements Initializable {
         imgWebCamCapturedImage.prefHeight(height);
         imgWebCamCapturedImage.prefWidth(width);
         imgWebCamCapturedImage.setPreserveRatio(true);
-
+        System.out.println("Width is " + width + " Height is " + height);
     }
 
     private void initializeWebCam(final int webCamIndex) {
@@ -108,6 +118,13 @@ public class Controller implements Initializable {
                     selWebCam.open();
 
                 }
+                width = selWebCam.getViewSize().width;
+                height = selWebCam.getViewSize().height;
+                System.out.println("Width " + width + " Height " + height);
+
+                //initialize image buffer and pixel raster initialized according to buffer size
+                grabbedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+                pixelRaster = ((DataBufferInt) grabbedImage.getRaster().getDataBuffer()).getData();
                 startWebCamStream();
                 return null;
             }
@@ -122,6 +139,7 @@ public class Controller implements Initializable {
     private void startWebCamStream() {
 
         stopCamera = false;
+        HandGesture handGesture = new HandGesture();
         Task<Void> task = new Task<Void>() {
 
             @Override
@@ -134,8 +152,17 @@ public class Controller implements Initializable {
                             Platform.runLater(new Runnable() {
                                 @Override
                                 public void run() {
-                                    final Image mainImage = SwingFXUtils.toFXImage(grabbedImage, null);
+                                    List<BufferedImage> bufferedImage = handGesture.paint(grabbedImage, pixelRaster, width, height);
+
+                                    Image mainImage = SwingFXUtils.toFXImage(bufferedImage.get(0), null);
                                     imageProperty.set(mainImage);
+
+                                    Image secondImage = SwingFXUtils.toFXImage(bufferedImage.get(1), null);
+                                    secondImageProperty.set(secondImage);
+
+                                    Image thirdImage = SwingFXUtils.toFXImage(bufferedImage.get(2), null);
+                                    thirdImageProperty.set(thirdImage);
+
                                 }
                             });
 
@@ -143,7 +170,7 @@ public class Controller implements Initializable {
 
                         }
                     } catch (Exception ignored) {
-                        System.out.println("Error stating webCam");
+                        System.out.println("Error stop webCam");
                     }
                 }
 
@@ -156,6 +183,8 @@ public class Controller implements Initializable {
         th.setDaemon(true);
         th.start();
         imgWebCamCapturedImage.imageProperty().bind(imageProperty);
+        topRightImage.imageProperty().bind(secondImageProperty);
+        middleRightImage.imageProperty().bind(thirdImageProperty);
 
     }
 
@@ -185,32 +214,5 @@ public class Controller implements Initializable {
         Webcam.shutdown();
         btnStopCamera.setDisable(true);
         btnStartCamera.setDisable(true);
-    }
-
-    class WebCamInfo {
-        private String webCamName;
-        private int webCamIndex;
-
-        public String getWebCamName() {
-            return webCamName;
-        }
-
-        public void setWebCamName(String webCamName) {
-            this.webCamName = webCamName;
-        }
-
-        public int getWebCamIndex() {
-            return webCamIndex;
-        }
-
-        public void setWebCamIndex(int webCamIndex) {
-            this.webCamIndex = webCamIndex;
-        }
-
-        @Override
-        public String toString() {
-            return webCamName;
-        }
-
     }
 }
