@@ -47,6 +47,8 @@ public class Controller implements Initializable {
     @FXML
     ImageView middleRightImage;
 
+    private boolean dataCollectionMode = true;
+
     private int width, height; //height and width of camera
     private BufferedImage grabbedImage; // initial cam image
     private Webcam selWebCam = null;
@@ -125,7 +127,7 @@ public class Controller implements Initializable {
                 //initialize image buffer and pixel raster initialized according to buffer size
                 grabbedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
                 pixelRaster = ((DataBufferInt) grabbedImage.getRaster().getDataBuffer()).getData();
-                startWebCamStream();
+                startWebCamStream(false);
                 return null;
             }
 
@@ -133,10 +135,9 @@ public class Controller implements Initializable {
 
         new Thread(webCamInitializer).start();
         fpBottomPane.setDisable(false);
-        btnStartCamera.setDisable(true);
     }
 
-    private void startWebCamStream() {
+    private void startWebCamStream(boolean clicked) {
 
         stopCamera = false;
         HandGesture handGesture = new HandGesture();
@@ -152,7 +153,7 @@ public class Controller implements Initializable {
                             Platform.runLater(new Runnable() {
                                 @Override
                                 public void run() {
-                                    List<BufferedImage> bufferedImage = handGesture.paint(grabbedImage, pixelRaster, width, height);
+                                    List<BufferedImage> bufferedImage = handGesture.paint(grabbedImage, pixelRaster, width, height, dataCollectionMode, clicked);
 
                                     Image mainImage = SwingFXUtils.toFXImage(bufferedImage.get(0), null);
                                     imageProperty.set(mainImage);
@@ -195,19 +196,22 @@ public class Controller implements Initializable {
         }
     }
 
+    @FXML
+    public void startCamera(ActionEvent event) {
+        stopCamera = false;
+        startWebCamStream(true);
+        btnStartCamera.setDisable(true);
+        btnStopCamera.setDisable(false);
+    }
+
+    @FXML
     public void stopCamera(ActionEvent event) {
         stopCamera = true;
         btnStartCamera.setDisable(false);
         btnStopCamera.setDisable(true);
     }
 
-    public void startCamera(ActionEvent event) {
-        stopCamera = false;
-        startWebCamStream();
-        btnStartCamera.setDisable(true);
-        btnStopCamera.setDisable(false);
-    }
-
+    @FXML
     public void disposeCamera(ActionEvent event) {
         stopCamera = true;
         closeCamera();

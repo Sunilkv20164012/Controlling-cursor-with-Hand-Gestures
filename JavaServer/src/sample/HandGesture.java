@@ -1,21 +1,61 @@
 package sample;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.RescaleOp;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
 public class HandGesture {
+
     private String[] gestureTypes = new String[]{"Ack", "Fist", "Hand", "One", "Straight", "Palm", "Thumbs", "None", "Swing", "Peace", "TestK"}; //types of gestures
+    private int gestureIndex = 10; //Gesture index to collect data for
+
+    // Image collection information
+    private int imageNumber = 0; //current image number being taken
+    private int maxImageNumber = 500; //max image numbers
+    private int imageCounter = 0; // wait timer before it equals reset count
+    private int resetCount = 1; // ticks to wait before image is taken
+
+
+    //Data writing into files
+    private String pathToDataCollection = "/home/saurabh/Desktop/FinalYearProject/HandGestureData/TestK/";
+    private PrintWriter writer; //writer to write to file
+
     private Rectangle boxPosition; //Red box location
 
     public HandGesture() {
 
+        //location where raw data would be created upon data collection being true
+        String rawDataFilename = pathToDataCollection + "raw_data.txt";
+        File rawData = new File(rawDataFilename); //raw data file
+
+        // if it does not exist
+        if (!rawData.exists()) {
+
+            //create new raw data file
+            try {
+                rawData.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // create writer to be able to write to raw data file
+        try {
+            writer = new PrintWriter(rawData);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
-    public List<BufferedImage> paint(BufferedImage initialWebcamImage, int[] pixelRaster, int width, int height) {
+    public List<BufferedImage> paint(BufferedImage initialWebcamImage, int[] pixelRaster, int width, int height, boolean dataCollectionMode, boolean clicked) {
 
         List<BufferedImage> bufferedImages = new ArrayList<>();
         //min and max bounds of the detected box
@@ -39,7 +79,6 @@ public class HandGesture {
         int[][] densityRaster = new int[height][width]; //raster for density
         int[][] clusterRaster = new int[height][width]; //raster for cluster
 
-        int[] guess = new int[gestureTypes.length]; ///prediction of neural network for this tick
         int index = 0; //used to access pixel raster when running through 2D array
 
         //Increase image contrast
@@ -280,6 +319,72 @@ public class HandGesture {
 
         }
 
+        //If data collection mode is true and the user clicked on the window screen
+        if (dataCollectionMode && clicked) {
+
+            // if max number of images a taken
+            if (imageNumber >= maxImageNumber) {
+                clicked = false;
+                writer.close(); //close print writer
+            }
+            // if max number of images are not taken yet
+            else {
+
+                //if image counter equals reset count, it's time to taken an image
+                if (imageCounter == resetCount) {
+
+                    System.out.println(imageNumber); //print current image number being taken
+                    int i = 0;
+
+                    // write 0's up to the gesture index and stop right before it
+                    for (; i < gestureIndex; i++) {
+                        if (i == gestureTypes.length - 1)
+                            writer.print("0");
+                        else
+                            writer.print("0 ");
+                    }
+
+                    // if current gesture type is the last index
+                    if (i == gestureTypes.length - 1) {
+                        //write a 1
+                        writer.print("1");
+                        i++;
+                    }
+                    // else there is more gestures left
+                    else {
+
+                        writer.print("1 "); //write a 1
+                        i++;
+
+                        //write the rest of 0's
+                        for (; i < gestureTypes.length; i++) {
+                            if (i == gestureTypes.length - 1)
+                                writer.print("0");
+                            else
+                                writer.print("0 ");
+                        }
+                    }
+
+                    //save this image
+                    try {
+                        ImageIO.write(newImage, "png", new File(pathToDataCollection + imageNumber + ".png"));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+
+                    imageCounter = 0;
+                    imageNumber++;
+
+                    //if this is not the last image write a new line character
+                    if (imageNumber < maxImageNumber) {
+                        writer.print("\n");
+                    }
+                }
+
+                imageCounter++;
+            }
+        }
 
         //set temp initial webcam image to temp raster
         tempInitialWebcamImage.setRGB(0, 0, width, height, tempRaster, 0, width);
@@ -289,8 +394,8 @@ public class HandGesture {
         //draw green pixel boxes from the density raster
         graphics2D.setColor(Color.green);
         for (Rectangle rect : listOfFoundObjects) {
-            System.out.println(rect.x + " " + rect.y + " " + rect.width + " " + rect.height);
-            System.out.println("            " + (rect.x + 20 + width + 10) + " " + (rect.y + 40) + " " + rect.width + " " + rect.height);
+//            System.out.println(rect.x + " " + rect.y + " " + rect.width + " " + rect.height);
+//            System.out.println("            " + (rect.x + 20 + width + 10) + " " + (rect.y + 40) + " " + rect.width + " " + rect.height);
             graphics2D.drawRect(rect.x, rect.y, rect.width, rect.height);
         }
 
@@ -306,7 +411,6 @@ public class HandGesture {
         bufferedImages.add(tempInitialWebcamImage);
         bufferedImages.add(initialWebcamImage);
         bufferedImages.add(newImage);
-        System.out.println("Returned to controller");
         return bufferedImages;
 
     }
