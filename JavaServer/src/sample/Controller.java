@@ -16,12 +16,13 @@ import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
+import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 
 import com.github.sarxos.webcam.Webcam;
 
@@ -46,8 +47,9 @@ public class Controller implements Initializable {
     ImageView topRightImage;
     @FXML
     ImageView middleRightImage;
+    @FXML
+    VBox gestureTypesVBox;
 
-    private boolean dataCollectionMode = true;
 
     private int width, height; //height and width of camera
     private BufferedImage grabbedImage; // initial cam image
@@ -57,6 +59,8 @@ public class Controller implements Initializable {
     private ObjectProperty<Image> secondImageProperty = new SimpleObjectProperty<>();
     private ObjectProperty<Image> thirdImageProperty = new SimpleObjectProperty<>();
     private int[] pixelRaster; //pixel raster for initial cam image
+
+    private String[] gestureTypes = new String[]{"Ack", "Fist", "Hand", "One", "Straight", "Palm", "Thumbs", "None", "Swing", "Peace", "TestK"}; //types of gestures
 
     @Override
     public void initialize(URL arg0, ResourceBundle arg1) {
@@ -135,12 +139,18 @@ public class Controller implements Initializable {
 
         new Thread(webCamInitializer).start();
         fpBottomPane.setDisable(false);
+
     }
 
     private void startWebCamStream(boolean clicked) {
+        //Data collection mode or mouse control mode
+        //If data collection mode is false then it will go into hand gesture prediction mode (Python client will need to connect to this server)
+        boolean dataCollectionMode = false;
+        boolean mouseControlMode = true;
+        int gestureIndex = 10; //Gesture index to collect data for
 
         stopCamera = false;
-        HandGesture handGesture = new HandGesture();
+        HandGesture handGesture = new HandGesture(dataCollectionMode, mouseControlMode, gestureTypes, gestureIndex);
         Task<Void> task = new Task<Void>() {
 
             @Override
@@ -153,7 +163,7 @@ public class Controller implements Initializable {
                             Platform.runLater(new Runnable() {
                                 @Override
                                 public void run() {
-                                    List<BufferedImage> bufferedImage = handGesture.paint(grabbedImage, pixelRaster, width, height, dataCollectionMode, clicked);
+                                    List<BufferedImage> bufferedImage = handGesture.paint(grabbedImage, pixelRaster, width, height, clicked);
 
                                     Image mainImage = SwingFXUtils.toFXImage(bufferedImage.get(0), null);
                                     imageProperty.set(mainImage);
@@ -164,6 +174,26 @@ public class Controller implements Initializable {
                                     Image thirdImage = SwingFXUtils.toFXImage(bufferedImage.get(2), null);
                                     thirdImageProperty.set(thirdImage);
 
+                                    gestureTypesVBox.getChildren().clear();
+                                    int[] guess = handGesture.getGuess();
+                                    for (int i = 0; i < gestureTypes.length; i++) {
+                                        String gesture = gestureTypes[i];
+                                        HBox hBox = new HBox();
+                                        hBox.setSpacing(10);
+                                        hBox.getChildren().add(new Label(gesture));
+                                        //hBox.setSpacing(5);
+
+                                        ProgressBar p2 = new ProgressBar();
+                                        p2.setProgress((float)guess[i]/100);
+                                        hBox.getChildren().add(p2);
+                                        //hBox.setSpacing(10);
+
+                                        hBox.getChildren().add(new Label(Integer.toString(guess[i])));
+                                        //hBox.setSpacing(15);
+
+                                        gestureTypesVBox.getChildren().add(hBox);
+                                        gestureTypesVBox.setSpacing(20);
+                                    }
                                 }
                             });
 

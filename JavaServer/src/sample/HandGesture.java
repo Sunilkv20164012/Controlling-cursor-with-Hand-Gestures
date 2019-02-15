@@ -2,20 +2,39 @@ package sample;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.event.InputEvent;
 import java.awt.image.BufferedImage;
 import java.awt.image.RescaleOp;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
-public class HandGesture {
+public class HandGesture implements Runnable{
 
-    private String[] gestureTypes = new String[]{"Ack", "Fist", "Hand", "One", "Straight", "Palm", "Thumbs", "None", "Swing", "Peace", "TestK"}; //types of gestures
-    private int gestureIndex = 10; //Gesture index to collect data for
+    /*If this value is true, the none detection will be done with neural network prediction.
+    The reason for this variable is, the low level Python library Theano is heavily
+    CPU intensive. So, if there is no hand in the camera, we might as well just make it 100% NONE
+    without having to constantly ask the neural network if it's seeing NONE.*/
+    private boolean detectNoneWithNeuralNetwork = false; //detect no gesture with neural network OR not
+
+    private boolean dataCollectionMode;
+    private boolean mouseControlMode;
+    private String[] gestureTypes;
+    private int gestureIndex; //Gesture index to collect data for
+    private int currentGestureIndex = 7; //default to NONE
+    private int[] guess = new int[11]; ///prediction of neural network for this tick
+
+    public int[] getGuess() {
+        return guess;
+    }
+
+    private Socket socket;
+    private boolean connected = false; //if server is connected to client
+
+
 
     // Image collection information
     private int imageNumber = 0; //current image number being taken
@@ -30,32 +49,73 @@ public class HandGesture {
 
     private Rectangle boxPosition; //Red box location
 
-    public HandGesture() {
+    private Robot robot; //Robot to move the mouse
 
-        //location where raw data would be created upon data collection being true
-        String rawDataFilename = pathToDataCollection + "raw_data.txt";
-        File rawData = new File(rawDataFilename); //raw data file
+    private ArrayList<Integer[]> count = new ArrayList<>(); //actions stored in here temporarily before being removed
+    private int searchDepth = 7; //Depth of actions stored in the count
+    private int move = 7; //keeps track to previous move
 
-        // if it does not exist
-        if (!rawData.exists()) {
 
-            //create new raw data file
+    private int width;
+    private int height;
+
+    public HandGesture(boolean dataCollectionMode, boolean mouseControlMode, String[] gestureTypes, int gestureIndex) {
+
+        this.dataCollectionMode = dataCollectionMode;
+        this.mouseControlMode = mouseControlMode;
+        this.gestureTypes = gestureTypes;
+        this.gestureIndex = gestureIndex;
+
+        //if data collection mode is false start server and robot
+        if (mouseControlMode) {
+
+            // start robot
             try {
-                rawData.createNewFile();
+                robot = new Robot();
+            } catch (AWTException e1) {
+                e1.printStackTrace();
+            }
+
+            //start server
+            try {
+                //Server socket for Python to connect to
+                ServerSocket serverSocket = new ServerSocket(12345);
+                System.out.println("Waiting for python client");
+                socket = serverSocket.accept();
+                connected = true;
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+        //else this is data collection mode
+        else if(dataCollectionMode){
+            //location where raw data would be created upon data collection being true
+            String rawDataFilename = pathToDataCollection + "raw_data.txt";
+            File rawData = new File(rawDataFilename); //raw data file
 
-        // create writer to be able to write to raw data file
-        try {
-            writer = new PrintWriter(rawData);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
+            // if it does not exist
+            if (!rawData.exists()) {
+
+                //create new raw data file
+                try {
+                    rawData.createNewFile();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            // create writer to be able to write to raw data file
+            try {
+                writer = new PrintWriter(rawData);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
         }
     }
 
-    public List<BufferedImage> paint(BufferedImage initialWebcamImage, int[] pixelRaster, int width, int height, boolean dataCollectionMode, boolean clicked) {
+    public List<BufferedImage> paint(BufferedImage initialWebcamImage, int[] pixelRaster, int width, int height, boolean clicked) {
+        this.width = width;
+        this.height = height;
 
         List<BufferedImage> bufferedImages = new ArrayList<>();
         //min and max bounds of the detected box
@@ -386,6 +446,108 @@ public class HandGesture {
             }
         }
 
+        //if server has connected to python client is true
+        if (connected) {
+
+            //if no hand is detected and detect none with neural network is false
+            if (!detectNoneWithNeuralNetwork && listOfFoundObjects.size() == 0) {
+                // hard code set current gesture
+                currentGestureIndex = 7;
+                guess[7] = 100;
+            } else {
+                // send neural network an image and get prediction
+                try {
+                    //PICK A REAL TIME PATH LOCATION. Python's client will need this location
+                    // String realTimePath = "/home/saurabh/Desktop/FinalYearProject/real_time.png";
+                    String realTimePath = "/home/saurabh/Desktop/Projects/HandGestureDetection/PythonScriptsAndModel/HandGestureModel/real_time.png";
+
+                    //write new image to the real time path
+                    File outputfile = new File(realTimePath);
+                    ImageIO.write(newImage, "png", outputfile);
+
+                    //data socket output data stream
+                    DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+
+                    //Write a random float to the the stream
+                    //This is only to let the client know it should start prediction
+                    out.writeFloat(1.23f);
+
+                    //Create buffered reader from the socket's input stream
+                    InputStream is = socket.getInputStream();
+                    InputStreamReader isr = new InputStreamReader(is);
+                    BufferedReader br = new BufferedReader(isr);
+
+                    String number = br.readLine(); //read line
+
+                    String[] str = number.split(" "); //Split line at space
+                    System.out.println("Prediction received from python client :");
+                    for (String s : str) {
+                        System.out.print(s + " ");
+                    }
+                    System.out.println(" ");
+
+                    int highestIndex = -1;
+                    int highestValue = -1;
+
+                    for (int i = 0; i < str.length; i++) {
+                        try {
+                            int f = (int) (100f * Float.parseFloat(str[i])); //parse string to float, and convert to integer
+                            guess[i] = f;
+
+                            //set highest value and index
+                            if (f > highestValue) {
+                                highestValue = f;
+                                highestIndex = i;
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                    }
+
+
+
+
+
+
+
+                    int[] countCheck = new int[gestureTypes.length]; //counting through the search depth
+
+                    count.add(new Integer[]{highestIndex, highestValue}); //add new index and value to the count
+
+                    // if count is bigger than search depth
+                    if (count.size() > searchDepth) {
+                        count.remove(0); //remove first element
+                    }
+
+                    float factor = 1f;
+                    // run backwards through count
+                    for (int i = count.size() - 1; i >= 0; i--) {
+                        // newly added gestures into count get higher precedence than old gestures
+                        // older gestures will have a lower importance factor compared to new gestures
+                        countCheck[count.get(i)[0]] += (float) count.get(i)[1] / factor;
+                        factor *= 1.1f;
+                    }
+
+                    int correctIndex = -1;
+                    int value = 0;
+
+                    //find the the correct index from the newly calculated countCheck array
+                    for (int i = 0; i < countCheck.length; i++) {
+                        if (value < countCheck[i]) {
+                            correctIndex = i;
+                            value = countCheck[i];
+                        }
+                    }
+
+                    currentGestureIndex = correctIndex;
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
         //set temp initial webcam image to temp raster
         tempInitialWebcamImage.setRGB(0, 0, width, height, tempRaster, 0, width);
 
@@ -455,5 +617,110 @@ public class HandGesture {
 
         return rgb;//return array
     }
+
+    @Override
+    public void run() {
+        while (true) {
+
+            //if in mouse control mode
+            if (mouseControlMode && currentGestureIndex != 7) {
+
+                //Calculate distance from center of the detected hand
+                float distanceFromCenter = (float) Math.sqrt(Math.pow((boxPosition.x + boxPosition.width / 2) - width / 2f, 2f) + Math.pow((boxPosition.y + boxPosition.height / 2) - height / 2f, 2f));
+
+                //Current gesture is FIST or ACK, and certain distance away from the center of the
+                if ((distanceFromCenter > 20 && currentGestureIndex == 0) || (distanceFromCenter > 25 && currentGestureIndex == 1)) {
+
+                    //Calculate mouse movement speed depending on distance from the center of the camera
+                    float factor = 0;
+                    float xSubNorm = ((boxPosition.x + boxPosition.width / 2f) - width / 2f) / distanceFromCenter;
+                    float ySubNorm = ((boxPosition.y + boxPosition.height / 2f) - height / 2f) / distanceFromCenter;
+                    Point p = MouseInfo.getPointerInfo().getLocation();
+
+                    if (currentGestureIndex == 1) {
+                        factor = 10f;
+                    } else if (currentGestureIndex == 0) {
+                        factor = 2f;
+                    }
+
+                    p.x += (xSubNorm * factor);
+                    p.y += (ySubNorm * factor);
+
+                    go(p.x, p.y); //mode mouse to new location
+                }
+                //Current gesture is SWING, while the previous gesture was not!
+                else if (move != currentGestureIndex && currentGestureIndex == 8) {
+                    move = currentGestureIndex;
+
+                    //double click
+                    //click();
+                    //click();
+
+                    System.out.println("Double Click");
+                }
+                //Current gesture is ONE, while the previous gesture was not!
+                else if (move != currentGestureIndex && currentGestureIndex == 3) {
+                    move = currentGestureIndex;
+
+                    //single click
+                    //click();
+
+                    System.out.println("One Click");
+                }
+            }
+        }
+
+
+    }
+
+    /*
+     * Move mouse to the desired location
+     * @param x
+     * @param y
+     */
+    private void go(int x, int y) {
+        robot.mouseMove(x, y);
+
+        try {
+            Thread.sleep(5);
+        } catch (InterruptedException err) {
+            err.printStackTrace();
+        }
+    }
+
+    /*
+     * Do a normal mouse click
+     */
+    public void click() {
+        robot.mousePress(InputEvent.BUTTON1_MASK);
+
+        try {
+            Thread.sleep(5);
+        } catch (InterruptedException err) {
+            err.printStackTrace();
+        }
+
+        robot.mouseRelease(InputEvent.BUTTON1_MASK);
+
+        try {
+            Thread.sleep(5);
+        } catch (InterruptedException err) {
+            err.printStackTrace();
+        }
+    }
+
+    /**
+     * Do a mouse down
+     */
+    public void down() {
+        robot.mousePress(InputEvent.BUTTON1_MASK);
+
+        try {
+            Thread.sleep(5);
+        } catch (InterruptedException err) {
+            err.printStackTrace();
+        }
+    }
+
 
 }
