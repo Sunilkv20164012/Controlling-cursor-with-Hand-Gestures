@@ -1,3 +1,10 @@
+"""
+HandNetMaker.py
+This script is only to be runs ONCE.
+It creates the JSON model file for the neural network which will be used to
+train and creature the neural network.
+"""
+
 from keras.engine.saving import model_from_json
 from keras.models import Sequential
 from keras.utils import plot_model
