@@ -147,10 +147,12 @@ public class Controller implements Initializable {
         //If data collection mode is false then it will go into hand gesture prediction mode (Python client will need to connect to this server)
         boolean dataCollectionMode = false;
         boolean mouseControlMode = true;
-        int gestureIndex = 10; //Gesture index to collect data for
+        int gestureIndex = 0; //Gesture index to collect data for
 
         stopCamera = false;
         HandGesture handGesture = new HandGesture(dataCollectionMode, mouseControlMode, gestureTypes, gestureIndex);
+        handGesture.start();
+
         Task<Void> task = new Task<Void>() {
 
             @Override

@@ -8,7 +8,7 @@ import struct
 
 
 class EasySocket:
-    def __init__(self, host='localhost', port=12345, preset_unpack_types=[]):
+    def __init__(self, host='192.168.0.103', port=12345, preset_unpack_types=[]):
 
         self.host = host
         self.port = port
@@ -77,7 +77,9 @@ class EasySocket:
     """
 
     def send_string_data(self, message):
-        self.client_socket.send(message.encode())
+        # self.client_socket.send(message.encode())
+        self.client_socket.send("Its saurabh sunil project".encode())
+        print("")
 
     """
     Get string from server

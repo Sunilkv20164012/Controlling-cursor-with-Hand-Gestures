@@ -7,7 +7,7 @@ NetLoader to function.
 
 from keras.models import model_from_json
 from keras.optimizers import SGD, RMSprop
-from keras.utils import plot_model
+# from keras.utils import plot_model
 import os.path
 import numpy as np
 
@@ -72,7 +72,7 @@ class NetLoader:
         json_file.close()
 
         self.model = model_from_json(loaded_model_json)
-        plot_model(self.model, to_file='model.png', show_shapes=True, show_layer_names=True)
+        # plot_model(self.model, to_file='model.png', show_shapes=True, show_layer_names=True)
 
     '''
     Load weights into the model from the weights file

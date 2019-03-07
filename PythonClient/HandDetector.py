@@ -21,7 +21,7 @@ if __name__ == "__main__":
     raw_input_size = 0  # there are no real input so set to 0
     raw_output_size = 10
 
-    train_mode = True
+    train_mode = False
     prediction_mode = False
 
     # Can be removed if there is no folder with gesture data 
@@ -40,6 +40,7 @@ if __name__ == "__main__":
                               learning_rate=0.001, decay_rate=0.00000001,
                               create_file=True, epoch_save=1)
 
+
     data_list = [  # First data set (Positional Gestures)
         image_val_data_location_1_1, image_val_data_location_2_1,
         image_val_data_location_3_1, image_val_data_location_4_1,
@@ -57,6 +58,18 @@ if __name__ == "__main__":
     data = DataLoader.DataLoader(data_paths=data_list, size_x=res_x,
                                  size_y=res_y, num_inputs=raw_input_size,
                                  num_outputs=raw_output_size, black_white=True)
+
+
+    # # just for testing purpose
+    # raw_RGB = data.load_image(real_time_path)  # loader raw image
+    # raw_RGB = np.array(raw_RGB, dtype=np.float32)
+    #
+    # pre = net.predict(np.array([raw_RGB]))
+    # for p in pre:
+    #     for i in p:
+    #         print(i*100, end="  ")
+    # exit(0)
+    # # testing ends here
 
     # if in training mode
     if train_mode:
@@ -86,7 +99,9 @@ if __name__ == "__main__":
         while True:
             if socket.get_anything(4, 0):  # get the integer (it does not make a difference what it gets)
 
-                raw_RGB = data.load_image(real_time_path)  # loader raw image
+                raw_RGB = data.load_image(real_time_path)
+                while raw_RGB == "saurabh":
+                    raw_RGB = data.load_image(real_time_path)  # loader raw image
                 raw_RGB = np.array(raw_RGB, dtype=np.float32)
 
                 pre = net.predict(np.array([raw_RGB]))  # get prediction

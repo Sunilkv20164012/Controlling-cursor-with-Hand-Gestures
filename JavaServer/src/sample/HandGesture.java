@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
-public class HandGesture implements Runnable{
+public class HandGesture extends Thread{
 
     /*If this value is true, the none detection will be done with neural network prediction.
     The reason for this variable is, the low level Python library Theano is heavily
@@ -44,7 +44,7 @@ public class HandGesture implements Runnable{
 
 
     //Data writing into files
-    private String pathToDataCollection = "/home/saurabh/Desktop/FinalYearProject/HandGestureData/TestK/";
+    private String pathToDataCollection = "/home/saurabh/Desktop/FinalYearProject/HandGestureData/Ack/";
     private PrintWriter writer; //writer to write to file
 
     private Rectangle boxPosition; //Red box location
@@ -83,6 +83,7 @@ public class HandGesture implements Runnable{
                 System.out.println("Waiting for python client");
                 socket = serverSocket.accept();
                 connected = true;
+                System.out.println("Client connected");
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -458,8 +459,7 @@ public class HandGesture implements Runnable{
                 // send neural network an image and get prediction
                 try {
                     //PICK A REAL TIME PATH LOCATION. Python's client will need this location
-                    // String realTimePath = "/home/saurabh/Desktop/FinalYearProject/real_time.png";
-                    String realTimePath = "/home/saurabh/Desktop/Projects/HandGestureDetection/PythonScriptsAndModel/HandGestureModel/real_time.png";
+                    String realTimePath = "/home/saurabh/Desktop/FinalYearProject/real_time.png";
 
                     //write new image to the real time path
                     File outputfile = new File(realTimePath);
@@ -480,11 +480,11 @@ public class HandGesture implements Runnable{
                     String number = br.readLine(); //read line
 
                     String[] str = number.split(" "); //Split line at space
-                    System.out.println("Prediction received from python client :");
-                    for (String s : str) {
-                        System.out.print(s + " ");
-                    }
-                    System.out.println(" ");
+//                    System.out.println("Prediction received from python client :");
+//                    for (String s : str) {
+//                        System.out.print(s + " ");
+//                    }
+//                    System.out.println(" ");
 
                     int highestIndex = -1;
                     int highestValue = -1;
@@ -493,9 +493,8 @@ public class HandGesture implements Runnable{
                         try {
                             int f = (int) (100f * Float.parseFloat(str[i])); //parse string to float, and convert to integer
                             guess[i] = f;
-
                             //set highest value and index
-                            if (f > highestValue) {
+                            if (f >= highestValue) {
                                 highestValue = f;
                                 highestIndex = i;
                             }
@@ -620,7 +619,15 @@ public class HandGesture implements Runnable{
 
     @Override
     public void run() {
+
         while (true) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            System.out.println(mouseControlMode + "           " + currentGestureIndex);
 
             //if in mouse control mode
             if (mouseControlMode && currentGestureIndex != 7) {
@@ -629,7 +636,7 @@ public class HandGesture implements Runnable{
                 float distanceFromCenter = (float) Math.sqrt(Math.pow((boxPosition.x + boxPosition.width / 2) - width / 2f, 2f) + Math.pow((boxPosition.y + boxPosition.height / 2) - height / 2f, 2f));
 
                 //Current gesture is FIST or ACK, and certain distance away from the center of the
-                if ((distanceFromCenter > 20 && currentGestureIndex == 0) || (distanceFromCenter > 25 && currentGestureIndex == 1)) {
+                if ((distanceFromCenter > 20 && currentGestureIndex == 2) || (distanceFromCenter > 25 && currentGestureIndex == 5)) {
 
                     //Calculate mouse movement speed depending on distance from the center of the camera
                     float factor = 0;
@@ -637,9 +644,9 @@ public class HandGesture implements Runnable{
                     float ySubNorm = ((boxPosition.y + boxPosition.height / 2f) - height / 2f) / distanceFromCenter;
                     Point p = MouseInfo.getPointerInfo().getLocation();
 
-                    if (currentGestureIndex == 1) {
+                    if (currentGestureIndex == 5) {
                         factor = 10f;
-                    } else if (currentGestureIndex == 0) {
+                    } else if (currentGestureIndex == 2) {
                         factor = 2f;
                     }
 
@@ -649,7 +656,7 @@ public class HandGesture implements Runnable{
                     go(p.x, p.y); //mode mouse to new location
                 }
                 //Current gesture is SWING, while the previous gesture was not!
-                else if (move != currentGestureIndex && currentGestureIndex == 8) {
+                else if (move != currentGestureIndex && currentGestureIndex == 1) {
                     move = currentGestureIndex;
 
                     //double click
@@ -666,6 +673,24 @@ public class HandGesture implements Runnable{
                     //click();
 
                     System.out.println("One Click");
+                }
+
+                else if(currentGestureIndex == 6) {
+                    move = currentGestureIndex;
+
+                    //single click
+                    //click();
+
+                    System.out.println("Scroll up");
+                }
+
+                else if(currentGestureIndex == 8) {
+                    move = currentGestureIndex;
+
+                    //single click
+                    //click();
+
+                    System.out.println("Scroll down");
                 }
             }
         }

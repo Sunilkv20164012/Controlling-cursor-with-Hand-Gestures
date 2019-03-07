@@ -7,6 +7,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="bridj-0.6.2" level="project" />
+    <orderEntry type="library" name="JavaFX-11" level="application" />
+    <orderEntry type="library" name="webcam-capture-0.3.10" level="application" />
   </component>
 </module>

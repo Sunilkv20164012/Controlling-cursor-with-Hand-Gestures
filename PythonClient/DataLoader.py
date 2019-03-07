@@ -112,9 +112,13 @@ class DataLoader:
     '''
 
     def load_image(self, image_path):
-        stream = Image.open(image_path)  # open file  in stream
+        try:
+            stream = Image.open(image_path)  # open file  in stream
 
-        raw_image_data = list(stream.getdata())  # convert image file to a list
+            raw_image_data = list(stream.getdata())  # convert image file to a list
+        except OSError:
+            print("Its ok")
+            return "saurabh"
 
         if not self.black_white:
             raw_RGB = [[], [], []]
